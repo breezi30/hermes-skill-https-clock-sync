@@ -81,15 +81,14 @@ jobs:
 
       - name: Resolve release notes
         id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
+          set -e
           NOTES_FILE="RELEASE_NOTES_v${VERSION}.md"
+          NOTES_PATH="/tmp/release_body.md"
           if [ -f "$NOTES_FILE" ]; then
-            {
-              echo "body<<EOF"
-              cat "$NOTES_FILE"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            cp "$NOTES_FILE" "$NOTES_PATH"
             echo "Using release notes from $NOTES_FILE"
           else
             # Fallback: generate from commits since last tag
@@ -100,17 +99,15 @@ jobs:
               RANGE=""
             fi
             {
-              echo "body<<EOF"
               echo "## Changes"
-              echo
+              echo ""
               echo '```'
               git log $RANGE --pretty=format:"- %s (%h)" --no-merges
-              echo
+              echo ""
               echo '```'
-              echo
+              echo ""
               echo "_No RELEASE_NOTES_v${VERSION}.md found; generated from git log._"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            } > "$NOTES_PATH"
             echo "Generated notes from git log ($RANGE)"
           fi
 
@@ -118,7 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ steps.version.outputs.VERSION }}"
-          body: ${{ steps.notes.outputs.body }}
+          body_path: /tmp/release_body.md
           draft: false
           prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}   # 含 '-' 视为 prerelease
           generate_release_notes: false   # 我们手写 notes
