@@ -79,11 +79,11 @@ done
 
 echo
 echo "=== 4. 部署前置检查 ==="
-command -v curl >/dev/null && ok "curl 已装" || { fail "缺 curl"; exit 1; }
-command -v date >/dev/null && ok "date 可用" || { fail "缺 date"; exit 1; }
-command -v hwclock >/dev/null && ok "hwclock 可用" || warn "hwclock 不可用 — RTC 不会同步，但系统时间仍会校准"
-command -v logger >/dev/null && ok "logger 可用" || warn "logger 不可用 — 日志会丢失"
-[ -d /run/systemd/system ] && ok "systemd 目录存在" || { fail "不是 systemd 系统，这个方案不适用"; exit 1; }
+if command -v curl >/dev/null; then ok "curl 已装"; else fail "缺 curl"; exit 1; fi
+if command -v date >/dev/null; then ok "date 可用"; else fail "缺 date"; exit 1; fi
+if command -v hwclock >/dev/null; then ok "hwclock 可用"; else warn "hwclock 不可用 — RTC 不会同步，但系统时间仍会校准"; fi
+if command -v logger >/dev/null; then ok "logger 可用"; else warn "logger 不可用 — 日志会丢失"; fi
+if [ -d /run/systemd/system ]; then ok "systemd 目录存在"; else fail "不是 systemd 系统，这个方案不适用"; exit 1; fi
 
 echo
 if (( REACHABLE >= 1 )); then

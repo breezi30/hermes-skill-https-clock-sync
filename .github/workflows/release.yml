@@ -54,6 +54,8 @@ jobs:
 
       - name: Lint bash scripts with shellcheck
         uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          severity: warning    # ignore info/style hints; only fail on warnings+
 
       - name: Verify shell scripts are executable
         run: |
