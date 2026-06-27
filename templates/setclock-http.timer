@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic HTTP clock sync (every 48 hours)
+
+[Timer]
+OnBootSec=30sec          # 开机 30 秒后立即同步一次（防长时间关机后漂移）
+OnUnitActiveSec=48h      # 之后每 48 小时一次
+AccuracySec=10sec        # 允许 10 秒精度漂移，避免唤醒风暴
+Persistent=true          # 错过触发点（关机）会在下次启动补跑
+Unit=setclock-http.service
+
+[Install]
+WantedBy=timers.target

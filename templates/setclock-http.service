@@ -1,0 +1,12 @@
+[Unit]
+Description=HTTP-based clock sync (for networks blocking NTP/UDP-123)
+Documentation=man:setclock-http
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setclock-http
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
