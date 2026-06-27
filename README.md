@@ -66,3 +66,21 @@ RK3528 Pro / Armbian Ubuntu 24.04 / aarch64 — 2026-06-15.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Release process
+
+Releases are **fully automated via GitHub Actions** — no manual clicks.
+
+1. Bump version in `SKILL.md` description (if needed)
+2. Commit your changes to a feature branch and open a PR → CI runs `validate`
+3. After PR merges to `main`, create a tag:
+   ```bash
+   git tag -a v1.1.0 -m "v1.1.0: <one-line summary>"
+   git push origin v1.1.0
+   ```
+4. The `release` workflow:
+   - Reads `RELEASE_NOTES_v1.1.0.md` from the repo (if present)
+   - Falls back to `git log` since the previous tag (if no notes file)
+   - Creates a GitHub Release at `releases/tag/v1.1.0`
+
+**Tags with `-` are marked as prerelease** (e.g. `v1.1.0-rc1`).

@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags:      ['v*']
+  pull_request:
+    branches: [main]
+
+# Concurrency: cancel any in-progress validation run when a new commit
+# is pushed to the same PR/branch. Releases are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  validate:
+    name: Validate skill
+    runs-on: ubuntu-latest
+    # Run on PRs and on direct pushes to main. Skip on tag pushes (those
+    # only trigger the `release` job below).
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check SKILL.md exists
+        run: |
+          if [ ! -f SKILL.md ]; then
+            echo "::error::SKILL.md not found in repo root"
+            exit 1
+          fi
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          python3 - <<'PYEOF'
+          import re, sys, pathlib
+          text = pathlib.Path('SKILL.md').read_text()
+          m = re.match(r'^---\n(.*?)\n---', text, re.DOTALL)
+          if not m:
+              print("::error::SKILL.md missing YAML frontmatter")
+              sys.exit(1)
+          fm = m.group(1)
+          if not re.search(r'^name:\s*\S', fm, re.MULTILINE):
+              print("::error::SKILL.md frontmatter missing 'name'")
+              sys.exit(1)
+          if not re.search(r'^description:\s*\S', fm, re.MULTILINE):
+              print("::error::SKILL.md frontmatter missing 'description'")
+              sys.exit(1)
+          print("OK: frontmatter has name + description")
+          PYEOF
+
+      - name: Lint bash scripts with shellcheck
+        uses: ludeeus/action-shellcheck@2.0.0
+
+      - name: Verify shell scripts are executable
+        run: |
+          for f in scripts/*.sh; do
+            if [ ! -x "$f" ]; then
+              echo "::error::$f is not executable (chmod +x)"
+              exit 1
+            fi
+          done
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    # Independent of `validate` — tag push triggers release directly.
+    # `validate` only runs on PRs to keep the feedback loop fast.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          NOTES_FILE="RELEASE_NOTES_v${VERSION}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            {
+              echo "body<<EOF"
+              cat "$NOTES_FILE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "Using release notes from $NOTES_FILE"
+          else
+            # Fallback: generate from commits since last tag
+            PREVIOUS_TAG=$(git tag --sort=-v:refname | sed -n '2p' || true)
+            if [ -n "$PREVIOUS_TAG" ]; then
+              RANGE="${PREVIOUS_TAG}..HEAD"
+            else
+              RANGE=""
+            fi
+            {
+              echo "body<<EOF"
+              echo "## Changes"
+              echo
+              echo '```'
+              git log $RANGE --pretty=format:"- %s (%h)" --no-merges
+              echo
+              echo '```'
+              echo
+              echo "_No RELEASE_NOTES_v${VERSION}.md found; generated from git log._"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "Generated notes from git log ($RANGE)"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.VERSION }}"
+          body: ${{ steps.notes.outputs.body }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}   # 含 '-' 视为 prerelease
+          generate_release_notes: false   # 我们手写 notes
+          fail_on_unmatched_files: false
